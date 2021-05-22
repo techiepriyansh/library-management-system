@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>LMS Register</title>
+  <link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/skeleton/2.0.4/skeleton.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+  <script type="text/javascript" src="register.js" defer></script>
+</head>
+<body>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+    }
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+  </style>
+  <h4>Register</h4>
+  <div id="log" v-if="seen">{{msg}}</div>
+  <br>
+  <form id="app" @submit.prevent="requestReg">
+    Name: <input v-model="name" type="text" name="name" id="name" pattern="[A-Za-z ]{1,50}">
+    <br>
+    Email: <input v-model="email" type="email" name="email" id="email" required="required">
+    <br>
+    Password: <input v-model="pass" type="password" name="pass" id="pass" required="required">
+    <br>
+    <input type="submit" value="Request Registration">
+  </form>
+  <a href="/user/login/login.html">Back to login</a>
+</body>
+</html>
