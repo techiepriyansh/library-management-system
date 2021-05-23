@@ -81,7 +81,23 @@ app.post('/adminLogin', (req, res) => {
 app.get('/books-data', (req, res) => {
   onAuthorizeAdmin(req.cookies.accessToken, (isAdmin) => {
     if (isAdmin) {
-      res.send({msg: 'books'});
+      connection.query(`select * from book;`, 
+        (error, results, fields) => {
+          if(error) {
+            console.log(error);
+            res.send({msg: 'error'});
+          }
+          else {
+            console.log(results);
+            let resData = [];
+            for(let result of results) {
+              let {id, title, author, publisher, info, pages, total, available} = result;
+              resData.push({id, title, author, publisher, info, pages, total, available});
+            }
+            res.send({arr: resData});
+          }
+        }
+      );
     }
     else {
       res.send({msg: 'error'});
@@ -122,6 +138,54 @@ app.get('/pending-requests', (req, res) => {
     }
   });
 
+});
+
+app.post('/approve-registration-request', (req, res) => {
+  onAuthorizeAdmin(req.cookies.accessToken, (isAdmin) => {
+    if (isAdmin) {
+      let {name, email} = req.body;
+      name = mysql.escape(name);
+      email = mysql.escape(email);
+      connection.query(`update user set active=true where name=${name} and email=${email};`, 
+        (error, results, fields) => {
+          if (error) {
+            res.send({success: false});
+            console.log(error);
+          }
+          else {
+            res.send({success: true});
+          }
+        }
+      );
+    }
+    else {
+      res.send({msg: 'access denied'});
+    }
+  });
+});
+
+app.post('/reject-registration-request', (req, res) => {
+  onAuthorizeAdmin(req.cookies.accessToken, (isAdmin) => {
+    if (isAdmin) {
+      let {name, email} = req.body;
+      name = mysql.escape(name);
+      email = mysql.escape(email);
+      connection.query(`delete from user where name=${name} and email=${email} and active=false;`, 
+        (error, results, fields) => {
+          if (error) {
+            res.send({success: false});
+            console.log(error);
+          }
+          else {
+            res.send({success: true});
+          }
+        }
+      );
+    }
+    else {
+      res.send({msg: 'access denied'});
+    }
+  });
 });
 
 function onAuthorizeAdmin(token, callback) {

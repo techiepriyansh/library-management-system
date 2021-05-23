@@ -29,6 +29,10 @@ let app = new Vue({
       if (resData.success) {
         log.msg = 'Registration Requested Successfully!';
         log.seen = true;
+
+        this.name = '';
+        this.email = '';
+        this.pass = '';
       }
       else if (resData.repeat){
         log.msg = 'User already exists!';
