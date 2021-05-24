@@ -39,7 +39,17 @@ app.get('/', (req, res) => {
 
 app.post('/userLogin', (req, res) => {
   let {email, pass} = req.body;
-  res.redirect('/');
+  pass = makeHash(pass);
+  handleUser(email, pass, (isVerifed, userObj) => {
+    if (isVerified) {
+      let {email, pass, id} = userObj;
+      res.cookie('accessToken', cipher.encrypt({email, pass, id}));
+      res.redirect('/user/home/home.html');
+    }
+    else {
+      res.redirect('/');
+    }
+  });
 });
 
 app.post('/register', (req, res) => {
@@ -53,6 +63,92 @@ app.post('/register', (req, res) => {
   res.send({success: true});
 });
 
+app.get('/user-books-data-all', (req, res) => {
+  onAuthorizeUser(req.cookies.accessToken, (isVerified) => {
+    if (isVerified) {
+      connection.query(`select * from book;`,
+        (error, results, fields) => {
+          if(error) {
+            console.log(error);
+            res.send({msg: 'error'});
+          }
+          else {
+            let resData = [];
+            for(let result of results) {
+              let {id, title, author, publisher, info, pages, available} = result;
+              resData.push({id, title, author, publisher, info, pages, available});
+            }
+            res.send({arr: resData});
+          }
+        }
+      );
+    }
+    else {
+      res.send({msg: 'error'});
+    }
+  });
+});
+
+app.get('/user-books-data-their', (req, res) => {
+  onAuthorizeUser(req.cookies.accessToken, (isVerified, userObj) => {
+    if (isVerified) {
+      let userId = mysql.escape(userObj.id);
+      connection.query(`select book from currently_issued where bearer=${userId};`, 
+        (error, results, fields) => {
+          if(error) {
+            console.log(error);
+            res.send({msg: 'error'});
+          }
+          else {
+            let resData = [];
+            for(let result of results) {
+              
+            }
+            res.send({arr: resData});
+          }
+        }
+      );
+    }
+    else {
+      res.send({msg: 'error'});
+    }
+  });
+});
+
+app.get('/authorize-user', (req, res) => {
+  onAuthorizeUser(req.cookies.accessToken, (isVerified) => {
+    res.send({authorized: isVerified});
+  });
+});
+
+
+function onAuthorizeUser(token, callback) {
+  if (!token) return callback(false);
+  let {email, pass} = cipher.decrypt(token);
+  handleUser(email, pass, callback);
+}
+
+function handleUser(email, pass, callback) {
+  email = mysql.escape(email);
+  pass = mysql.escape(pass);
+  connection.query(`select * from user where email=${email} and pass=${pass};`, 
+    (error, results, fields) => {
+      if (error) {
+        console.log(error);
+        callback(false);
+      } 
+      else {
+        if (results.length > 0) {
+          callback(true, results[0]);
+
+        }
+        else {
+          callback(false);
+        }
+      }
+    }
+  );
+}
 
 // admin stuff //
 
@@ -108,7 +204,7 @@ app.post('/edit-book-data', (req, res) => {
       connection.query(
         `
         update book
-        
+
         set title = ${mysql.escape(title)}, 
         author = ${mysql.escape(author)},
         publisher = ${mysql.escape(publisher)},
