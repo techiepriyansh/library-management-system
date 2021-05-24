@@ -39,7 +39,6 @@ app.get('/', (req, res) => {
 
 app.post('/userLogin', (req, res) => {
   let {email, pass} = req.body;
-  console.log(`${email} ${pass}`);
   res.redirect('/');
 });
 
@@ -51,7 +50,6 @@ app.post('/register', (req, res) => {
     return;
   }
   addPendingUser(name, email, pass);
-  console.log(`${name} ${email} ${pass}`);
   res.send({success: true});
 });
 
@@ -66,7 +64,6 @@ app.post('/adminLogin', (req, res) => {
   let {email, pass} = req.body;
   pass = makeHash(pass);
   let creds = {email, pass};
-  console.log(creds);
   handleAdmin(email, pass, (isAdmin) => {
     if (isAdmin) {
       res.cookie('accessToken', cipher.encrypt(creds));
@@ -88,7 +85,6 @@ app.get('/books-data', (req, res) => {
             res.send({msg: 'error'});
           }
           else {
-            console.log(results);
             let resData = [];
             for(let result of results) {
               let {id, title, author, publisher, info, pages, total, available} = result;
@@ -98,6 +94,40 @@ app.get('/books-data', (req, res) => {
           }
         }
       );
+    }
+    else {
+      res.send({msg: 'error'});
+    }
+  });
+});
+
+app.post('/edit-book-data', (req, res) => {
+  onAuthorizeAdmin(req.cookies.accessToken, (isAdmin) => {
+    if (isAdmin) {
+      let {id, title, author, publisher, pages, total, available} = req.body;
+      connection.query(
+        `
+        update book
+        
+        set title = ${mysql.escape(title)}, 
+        author = ${mysql.escape(author)},
+        publisher = ${mysql.escape(publisher)},
+        pages = ${mysql.escape(pages)},
+        total = ${mysql.escape(total)},
+        available = ${mysql.escape(available)}
+
+        where id = ${mysql.escape(id)};
+        `,
+        (error, results, fields) => {
+          if (error) {
+            console.log(error);
+            res.send({success: false});
+          }
+          else {
+            res.send({success: true});
+          }
+        }
+      )
     }
     else {
       res.send({msg: 'error'});
@@ -121,7 +151,6 @@ app.get('/pending-requests', (req, res) => {
             res.send({msg: 'error'});
           }
           else {
-            console.log(results);
             let resData = [];
             for(let result of results) {
               let {email, name} = result;
@@ -205,7 +234,6 @@ function handleAdmin(email, pass, callback) {
       } 
       else {
         if (results.length > 0) {
-          console.log(results);
           callback(true);
 
         }

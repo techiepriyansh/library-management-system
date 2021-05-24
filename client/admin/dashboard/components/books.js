@@ -1,19 +1,19 @@
 Vue.component('book-item', {
   template: `
     <div class="box">
-      <div class="book-item" @click="showModal">
+      <div class="book-item" @click="showMoreModal">
         <div class="content">
           <p class="title"> {{bookData.title}} </p> 
           <p class="subtitle"> {{bookData.author}} </p>
           <p class="content"> {{bookData.info}} </p>
         </div>
       </div>
-      <div class="modal" v-bind:class="{ 'is-active': isModalActive }">
+      <div class="modal" v-bind:class="{ 'is-active': isMoreModalActive }">
         <div class="modal-background"></div>
         <div class="modal-card">
           <header class="modal-card-head">
             <p class="modal-card-title">{{bookData.title}}</p>
-            <button class="delete" aria-label="close" @click="closeModal"></button>
+            <button class="delete" aria-label="close" @click="closeMoreModal"></button>
           </header>
           <section class="modal-card-body">
             <div> 
@@ -27,9 +27,66 @@ Vue.component('book-item', {
             </div>
           </section>
           <footer class="modal-card-foot">
-            <div>
-            <button class="button is-success">Edit</button>
+            <button class="button is-success" @click="showEditModal">Edit</button>
+            <button class="button" @click="closeMoreModal">Back</button>
           </footer>
+        </div>
+      </div>
+      <div class="modal" v-bind:class="{ 'is-active': isEditModalActive }">
+        <div class="modal-background"></div>
+        <div class="modal-card">
+          <header class="modal-card-head">
+            <p class="modal-card-title">Edit: {{bookData.title}}</p>
+            <button class="delete" aria-label="close" @click="closeEditModal"></button>
+          </header>
+          <section class="modal-card-body">
+            <div class="field">
+              <label class="label"> Title </label>
+              <div class="control">
+                <input class="input is-large" type="text" required="true" v-model="bookData.title">
+              </div>
+            </div>
+            <div class="field">
+              <label class="label"> Author </label>
+              <div class="control">
+                <input class="input is-normal" type="text" required="true" v-model="bookData.author">
+              </div>
+            </div>
+            <div class="field">
+              <label class="label"> Publisher </label>
+              <div class="control">
+                <input class="input is-normal" type="text" required="true" v-model="bookData.publisher">
+              </div>
+            </div>
+            <div class="field">
+              <label class="label"> Pages </label>
+              <div class="control">
+                <input class="input is-normal" type="text" required="true" pattern="[0-9]+" v-model="bookData.pages">
+              </div>
+            </div>
+            <div class="field">
+              <label class="label"> Total </label>
+              <div class="control">
+                <input class="input is-normal" type="text" required="true" pattern="[0-9]+" v-model="bookData.total">
+              </div>
+            </div>
+            <div class="field">
+              <label class="label"> Available </label>
+              <div class="control">
+                <input class="input is-normal" type="text" required="true" pattern="[0-9]+" v-model="bookData.available">
+              </div>
+            </div>
+            <div class="field">
+              <label class="label"> Description </label>
+              <div class="control">
+                <textarea class="textarea" v-model="bookData.info"></textarea>
+              </div>
+            </div>
+          </section>
+            <footer class="modal-card-foot">
+              <button class="button is-success" @click="editBookData">Save Changes</button>
+              <button class="button" @click="closeEditModal">Cancel</button>
+            </footer>
         </div>
       </div>
     </div>
@@ -40,20 +97,39 @@ Vue.component('book-item', {
   }, 
 
   data: function() {
-    return { isModalActive: false };
+    return { 
+      isMoreModalActive: false,
+      isEditModalActive: false, 
+    };
   },
 
   methods: {
-    editBookPrompt: function() {
-      console.log("edit");
+    showMoreModal: function() {
+      this.isMoreModalActive = true;
     },
 
-    showModal: function() {
-      this.isModalActive = true;
+    closeMoreModal: function() {
+      this.isMoreModalActive = false;
     },
 
-    closeModal: function() {
-      this.isModalActive = false;
+    showEditModal: function() {
+      this.isMoreModalActive = false;
+      this.isEditModalActive = true;
+    },
+
+    closeEditModal: function() {
+      this.isEditModalActive = false;
+      this.isMoreModalActive = true;
+    },
+
+    editBookData: async function() {
+      console.log("submitted");
+      console.log(this.bookData);
+      let resData = await postJSON('/edit-book-data', this.bookData);
+      if (!resData.success) {
+        await rootEl.$refs['bookItemsContainer'].getBooksData();
+      }
+      this.closeEditModal();
     },
   },
 });
