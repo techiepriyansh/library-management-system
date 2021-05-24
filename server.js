@@ -1,6 +1,7 @@
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const mysql = require('mysql');
+const util = require('util');
 require('dotenv').config();
 
 const { ObjectCipher, makeHash } = require('./cipher.js');
@@ -20,6 +21,7 @@ const connection = mysql.createConnection({
   database: process.env.MySQL_DATABASE,
 });
 connection.connect();
+const query = util.promisify(connection.query).bind(connection);
 
 const listener = app.listen(process.env.PORT, () => {
   console.log("We are listening on " + listener.address().port);
@@ -37,118 +39,101 @@ app.get('/', (req, res) => {
   res.redirect('/user/login/login.html');
 });
 
-app.post('/userLogin', (req, res) => {
+app.post('/userLogin', async (req, res) => {
   let {email, pass} = req.body;
   pass = makeHash(pass);
-  handleUser(email, pass, (isVerifed, userObj) => {
-    if (isVerified) {
-      let {email, pass, id} = userObj;
-      res.cookie('accessToken', cipher.encrypt({email, pass, id}));
-      res.redirect('/user/home/home.html');
-    }
-    else {
-      res.redirect('/');
-    }
-  });
+  let isVerified = await handleUser(email, pass);
+  let results = await query(`select * from user where email=${mysql.escape(email)} and pass=${mysql.escape(pass)};`);
+  let userObj = results[0];
+  if (isVerified) {
+    let {email, pass, id} = userObj;
+    res.cookie('accessToken', cipher.encrypt({email, pass, id}));
+    res.redirect('/user/home/home.html');
+  }
+  else {
+    res.redirect('/');
+  }
 });
 
-app.post('/register', (req, res) => {
+app.post('/register', async (req, res) => {
   let {name, email, pass} = req.body;
   pass = makeHash(pass);
-  if (doesUserExist(name, email, pass)) {
+  let userAlreadyExists = await doesUserExist(name, email, pass);
+  if (userAlreadyExists) {
     res.send({repeat: true});
     return;
   }
-  addPendingUser(name, email, pass);
+  await addPendingUser(name, email, pass);
   res.send({success: true});
 });
 
-app.get('/user-books-data-all', (req, res) => {
-  onAuthorizeUser(req.cookies.accessToken, (isVerified) => {
-    if (isVerified) {
-      connection.query(`select * from book;`,
-        (error, results, fields) => {
-          if(error) {
-            console.log(error);
-            res.send({msg: 'error'});
-          }
-          else {
-            let resData = [];
-            for(let result of results) {
-              let {id, title, author, publisher, info, pages, available} = result;
-              resData.push({id, title, author, publisher, info, pages, available});
-            }
-            res.send({arr: resData});
-          }
-        }
-      );
+app.get('/user-books-data-all', async (req, res) => {
+  let isVerified = await authorizeUser(req.cookies.accessToken);
+  if (isVerified) {
+    const results = await query(`select * from book;`)
+    let resData = [];
+    for(let result of results) {
+      let {id, title, author, publisher, info, pages, available} = result;
+      resData.push({id, title, author, publisher, info, pages, available});
     }
-    else {
-      res.send({msg: 'error'});
-    }
-  });
+    res.send({arr: resData});
+  }
+  else {
+    res.send({msg: 'access denied'});
+  } 
 });
 
-app.get('/user-books-data-their', (req, res) => {
-  onAuthorizeUser(req.cookies.accessToken, (isVerified, userObj) => {
-    if (isVerified) {
-      let userId = mysql.escape(userObj.id);
-      connection.query(`select book from currently_issued where bearer=${userId};`, 
-        (error, results, fields) => {
-          if(error) {
-            console.log(error);
-            res.send({msg: 'error'});
-          }
-          else {
-            let resData = [];
-            for(let result of results) {
-              
-            }
-            res.send({arr: resData});
-          }
-        }
-      );
+app.get('/user-books-data-their', async (req, res) => {
+  let isVerified = await authorizeUser(req.cookies.accessToken);
+  if (isVerified) {
+    let userId = mysql.escape(userObj.id);
+    let results = await query(`select * from currently_issued where bearer=${userId};`); 
+    let resData = [];
+    for(let result of results) {
+      let bookId = mysql.escape(result.book);
+      let timeIssued = result.time_issued;
+      let bookData = await query(`select * from book where id=${bookId};`);
+      let {id, title, author, publisher, info, pages, available} = bookData;
+      resData.push({id, title, author, publisher, info, pages, available, timeIssued});
     }
-    else {
-      res.send({msg: 'error'});
-    }
-  });
+    res.send({arr: resData});
+  }
+  else {
+    res.send({msg: 'error'});
+  }
 });
 
-app.get('/authorize-user', (req, res) => {
-  onAuthorizeUser(req.cookies.accessToken, (isVerified) => {
-    res.send({authorized: isVerified});
-  });
+app.get('/authorize-user', async (req, res) => {
+  let isVerified = await authorizeUser(req.cookies.accessToken);
+  res.send({authorized: isVerified});
 });
 
 
-function onAuthorizeUser(token, callback) {
-  if (!token) return callback(false);
-  let {email, pass} = cipher.decrypt(token);
-  handleUser(email, pass, callback);
+async function authorizeUser(token) {
+  if (!token) return false;
+
+  let decryptedObj;
+  try {
+    decryptedObj = cipher.decrypt(token);
+  } 
+  catch (excp) {
+    return false;
+  }
+
+  console.log(decryptedObj);
+  let {email, pass} = decryptedObj;
+  return handleUser(email, pass);
 }
 
-function handleUser(email, pass, callback) {
+async function handleUser(email, pass) {
   email = mysql.escape(email);
   pass = mysql.escape(pass);
-  connection.query(`select * from user where email=${email} and pass=${pass};`, 
-    (error, results, fields) => {
-      if (error) {
-        console.log(error);
-        callback(false);
-      } 
-      else {
-        if (results.length > 0) {
-          callback(true, results[0]);
 
-        }
-        else {
-          callback(false);
-        }
-      }
-    }
-  );
+  const results = await query(`select * from user where email=${email} and pass=${pass};`);
+  return results.length > 0;
 }
+
+
 
 // admin stuff //
 
@@ -156,221 +141,149 @@ app.get('/admin', (req, res) => {
   res.redirect('/admin/login/login.html');
 });
 
-app.post('/adminLogin', (req, res) => {
+app.post('/adminLogin', async (req, res) => {
   let {email, pass} = req.body;
   pass = makeHash(pass);
   let creds = {email, pass};
-  handleAdmin(email, pass, (isAdmin) => {
-    if (isAdmin) {
-      res.cookie('accessToken', cipher.encrypt(creds));
-      res.redirect('/admin/dashboard/dashboard.html');
-    }
-    else {
-      res.send('access denied');
-    }
-  }); 
+  let isAdmin = await handleAdmin(email, pass);
+  if (isAdmin) {
+    res.cookie('accessToken', cipher.encrypt(creds));
+    res.redirect('/admin/dashboard/dashboard.html');
+  }
+  else {
+    res.send('access denied');
+  }
 });
 
-app.get('/books-data', (req, res) => {
-  onAuthorizeAdmin(req.cookies.accessToken, (isAdmin) => {
-    if (isAdmin) {
-      connection.query(`select * from book;`, 
-        (error, results, fields) => {
-          if(error) {
-            console.log(error);
-            res.send({msg: 'error'});
-          }
-          else {
-            let resData = [];
-            for(let result of results) {
-              let {id, title, author, publisher, info, pages, total, available} = result;
-              resData.push({id, title, author, publisher, info, pages, total, available});
-            }
-            res.send({arr: resData});
-          }
-        }
-      );
+app.get('/books-data', async (req, res) => {
+  let isAdmin = await authorizeAdmin(req.cookies.accessToken);
+  if (isAdmin) {
+    const results = await query(`select * from book;`)
+    let resData = [];
+    for(let result of results) {
+      let {id, title, author, publisher, info, pages, total, available} = result;
+      resData.push({id, title, author, publisher, info, pages, total, available});
     }
-    else {
-      res.send({msg: 'error'});
-    }
-  });
+    res.send({arr: resData});
+  }
+  else {
+    res.send({msg: 'access denied'});
+  } 
 });
 
-app.post('/edit-book-data', (req, res) => {
-  onAuthorizeAdmin(req.cookies.accessToken, (isAdmin) => {
-    if (isAdmin) {
-      let {id, title, author, publisher, pages, total, available} = req.body;
-      connection.query(
-        `
-        update book
+app.post('/edit-book-data', async (req, res) => {
+  let isAdmin = await authorizeAdmin(req.cookies.accessToken);
+  if (isAdmin) {
+    let {id, title, author, publisher, pages, total, available} = req.body;
+    await query(
+      `
+      update book
 
-        set title = ${mysql.escape(title)}, 
-        author = ${mysql.escape(author)},
-        publisher = ${mysql.escape(publisher)},
-        pages = ${mysql.escape(pages)},
-        total = ${mysql.escape(total)},
-        available = ${mysql.escape(available)}
+      set title = ${mysql.escape(title)}, 
+      author = ${mysql.escape(author)},
+      publisher = ${mysql.escape(publisher)},
+      pages = ${mysql.escape(pages)},
+      total = ${mysql.escape(total)},
+      available = ${mysql.escape(available)}
 
-        where id = ${mysql.escape(id)};
-        `,
-        (error, results, fields) => {
-          if (error) {
-            console.log(error);
-            res.send({success: false});
-          }
-          else {
-            res.send({success: true});
-          }
-        }
-      )
-    }
-    else {
-      res.send({msg: 'error'});
-    }
-  });
+      where id = ${mysql.escape(id)};
+      `
+    );
+    res.send({success: true});
+  }
+  else {
+    res.send({msg: 'access denied'});
+  }
 });
 
-app.get('/authorize-admin', (req, res) => {
-  onAuthorizeAdmin(req.cookies.accessToken, (isAdmin) => {
-    res.send({authorized: isAdmin});
-  });
+app.get('/authorize-admin', async (req, res) => {
+  let isAdmin = await authorizeAdmin(req.cookies.accessToken);
+  res.send({authorized: isAdmin});
 });
 
-app.get('/pending-requests', (req, res) => {
-  onAuthorizeAdmin(req.cookies.accessToken, (isAdmin) => {
-    if (isAdmin) {
-      connection.query(`select * from user where active=false;`,
-        (error, results, fields) => {
-          if (error) {
-            console.log(error);
-            res.send({msg: 'error'});
-          }
-          else {
-            let resData = [];
-            for(let result of results) {
-              let {email, name} = result;
-              resData.push({email, name});
-            }
-            res.send({arr: resData});
-          }
-
-        }
-      );
+app.get('/pending-requests', async (req, res) => {
+  let isAdmin = await authorizeAdmin(req.cookies.accessToken);
+  if (isAdmin) {
+    const results = await query(`select * from user where active=false;`);
+    let resData = [];
+    for(let result of results) {
+      let {email, name} = result;
+      resData.push({email, name});
     }
-    else {
-      res.send({msg: 'access denied'});
-    }
-  });
-
+    res.send({arr: resData});
+  }
+  else {
+    res.send({msg: 'access denied'});
+  }
 });
 
-app.post('/approve-registration-request', (req, res) => {
-  onAuthorizeAdmin(req.cookies.accessToken, (isAdmin) => {
-    if (isAdmin) {
-      let {name, email} = req.body;
-      name = mysql.escape(name);
-      email = mysql.escape(email);
-      connection.query(`update user set active=true where name=${name} and email=${email};`, 
-        (error, results, fields) => {
-          if (error) {
-            res.send({success: false});
-            console.log(error);
-          }
-          else {
-            res.send({success: true});
-          }
-        }
-      );
-    }
-    else {
-      res.send({msg: 'access denied'});
-    }
-  });
+app.post('/approve-registration-request', async (req, res) => {
+  let isAdmin = await authorizeAdmin(req.cookies.accessToken);
+  if (isAdmin) {
+    let {name, email} = req.body;
+    name = mysql.escape(name);
+    email = mysql.escape(email);
+    await query(`update user set active=true where name=${name} and email=${email};`);
+    res.send({success: true});
+  }
+  else {
+    res.send({msg: 'access denied'});
+  }
 });
 
-app.post('/reject-registration-request', (req, res) => {
-  onAuthorizeAdmin(req.cookies.accessToken, (isAdmin) => {
-    if (isAdmin) {
-      let {name, email} = req.body;
-      name = mysql.escape(name);
-      email = mysql.escape(email);
-      connection.query(`delete from user where name=${name} and email=${email} and active=false;`, 
-        (error, results, fields) => {
-          if (error) {
-            res.send({success: false});
-            console.log(error);
-          }
-          else {
-            res.send({success: true});
-          }
-        }
-      );
-    }
-    else {
-      res.send({msg: 'access denied'});
-    }
-  });
+app.post('/reject-registration-request', async (req, res) => {
+  let isAdmin = await authorizeAdmin(req.cookies.accessToken);
+  if (isAdmin) {
+    let {name, email} = req.body;
+    name = mysql.escape(name);
+    email = mysql.escape(email);
+    await query(`delete from user where name=${name} and email=${email} and active=false;`);
+    res.send({success: true});
+  }
+  else {
+    res.send({msg: 'access denied'});
+  }
 });
 
-function onAuthorizeAdmin(token, callback) {
-  if (!token) return callback(false);
-  let {email, pass} = cipher.decrypt(token);
-  handleAdmin(email, pass, callback);
+async function authorizeAdmin(token) {
+  if (!token) return false;
+
+  let decryptedObj;
+  try {
+    decryptedObj = cipher.decrypt(token);
+  } 
+  catch (excp) {
+    return false;
+  }
+
+  let {email, pass} = decryptedObj;
+  return handleAdmin(email, pass);
 }
 
-function handleAdmin(email, pass, callback) {
+async function handleAdmin(email, pass) {
   email = mysql.escape(email);
   pass = mysql.escape(pass);
-  connection.query(`select * from admin where email=${email} and pass=${pass};`, 
-    (error, results, fields) => {
-      if (error) {
-        console.log(error);
-        callback(false);
-      } 
-      else {
-        if (results.length > 0) {
-          callback(true);
 
-        }
-        else {
-          callback(false);
-        }
-      }
-    }
-  );
+  const results = await query(`select * from admin where email=${email} and pass=${pass};`);
+  return results.length > 0;
 }
 
-function doesUserExist(name, email, pass) {
-  name = mysql.escape(name);
-  email = mysql.escape(email);
-  pass = mysql.escape(pass);
-  connection.query(`select * from user where name=${name} and email=${email} and pass=${pass};`, 
-    (error, results, fields) => {
-      if (error){
-        console.log(error);
-        return true;
-      }
-      else {
-        return results.length > 0;
-      }
-    }
-  );
-}
 
-function addPendingUser(name, email, pass) {
+async function doesUserExist(name, email, pass) {
   name = mysql.escape(name);
   email = mysql.escape(email);
   pass = mysql.escape(pass);
 
-  connection.query(`insert into user (email, name, pass, active) values (${email},${name},${pass},false);`,
-    (error, results, fields) => {
-      if (error) {
-        console.log(error);
-        ok = false;
-      }
-    }
-  );
+  const results = await query(`select * from user where name=${name} and email=${email} and pass=${pass};`);
+  return results.length > 0;
+}
+
+async function addPendingUser(name, email, pass) {
+  name = mysql.escape(name);
+  email = mysql.escape(email);
+  pass = mysql.escape(pass);
+
+  await query(`insert into user (email, name, pass, active) values (${email},${name},${pass},false);`);
 }
 
 

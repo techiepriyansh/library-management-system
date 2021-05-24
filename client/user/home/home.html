@@ -14,10 +14,10 @@
 <body v-if="seen">
   <div id="root" class="container">
     <tabs>
-      <tab name="Books" v-bind:selected="true">
+      <tab name="Library" v-bind:selected="true">
         <book-items-container ref="bookItemsContainer"></book-items-container>
       </tab>
-      <tab name="Registration Requests">
+      <tab name="My Books">
         <request-items-container ref="reqItemsContainer"></request-items-container>
       </tab>
     </tabs>
