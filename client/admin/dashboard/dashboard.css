@@ -20,7 +20,7 @@ html, body {
   height: 100%;
 }
 
-.request-item, .checkout-item {
+.request-item, .checkout-item, .checkin-item {
   display: flex;
   flex-direction: row;
   justify-content: space-between;

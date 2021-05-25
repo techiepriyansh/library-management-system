@@ -11,6 +11,7 @@
   <script type="text/javascript" src="/util/tabs.js" defer></script>
   <script type="text/javascript" src="components/requestItems.js" defer></script>
   <script type="text/javascript" src="components/checkoutItems.js" defer></script>
+  <script type="text/javascript" src="components/checkinItems.js" defer></script>
   <script type="text/javascript" src="components/books.js" defer></script>
   <script type="text/javascript" src="dashboard.js" defer></script>
 </head>
@@ -25,6 +26,9 @@
       </tab>
       <tab name="Checkout Requests">
         <checkout-items-container ref="checkoutItemsContainer"></checkout-items-container>
+      </tab>
+      <tab name="Checkin Requests">
+        <checkin-items-container ref="checkinItemsContainer"></checkin-items-container>
       </tab>
     </tabs>
   </div>
