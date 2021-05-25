@@ -67,14 +67,19 @@ app.post('/register', async (req, res) => {
   res.send({success: true});
 });
 
-app.get('/user-books-data-all', async (req, res) => {
+app.get('/user-book-library', async (req, res) => {
   let isVerified = await authorizeUser(req.cookies.accessToken);
+  let userId = cipher.decrypt(req.cookies.accessToken).id;
   if (isVerified) {
     const results = await query(`select * from book;`)
     let resData = [];
     for(let result of results) {
       let {id, title, author, publisher, info, pages, available} = result;
-      resData.push({id, title, author, publisher, info, pages, available});
+      let inCurrentlyIssued = await query(`select * from currently_issued where book=${mysql.escape(id)} and bearer=${mysql.escape(userId)}`);
+      if (inCurrentlyIssued.length > 0) continue;
+      let inTransaction = await query(`select * from transaction where book=${mysql.escape(id)}`);
+      let requested = inTransaction.length > 0;
+      resData.push({id, title, author, publisher, info, pages, available, requested});
     }
     res.send({arr: resData});
   }
@@ -86,7 +91,8 @@ app.get('/user-books-data-all', async (req, res) => {
 app.get('/user-books-data-their', async (req, res) => {
   let isVerified = await authorizeUser(req.cookies.accessToken);
   if (isVerified) {
-    let userId = mysql.escape(userObj.id);
+    let userId = cipher.decrypt(req.cookies.accessToken).id;
+    userId = mysql.escape(userId);
     let results = await query(`select * from currently_issued where bearer=${userId};`); 
     let resData = [];
     for(let result of results) {
@@ -99,7 +105,24 @@ app.get('/user-books-data-their', async (req, res) => {
     res.send({arr: resData});
   }
   else {
-    res.send({msg: 'error'});
+    res.send({msg: 'access denied'});
+  }
+});
+
+app.post('/request-checkout', async (req, res) => {
+  let isVerified = await authorizeUser(req.cookies.accessToken);
+  if (isVerified) {
+    let requestee = cipher.decrypt(req.cookies.accessToken).id;
+    let {book} = req.body;
+
+    requestee = mysql.escape(requestee);
+    book = mysql.escape(book);
+    
+    await query(`insert into transaction (book, requestee) values (${book}, ${requestee});`);
+    res.send({success: true});
+  }
+  else {
+    res.send({msg: 'access denied'});
   }
 });
 
@@ -238,6 +261,79 @@ app.post('/reject-registration-request', async (req, res) => {
     name = mysql.escape(name);
     email = mysql.escape(email);
     await query(`delete from user where name=${name} and email=${email} and active=false;`);
+    res.send({success: true});
+  }
+  else {
+    res.send({msg: 'access denied'});
+  }
+});
+
+app.get('/pending-checkouts', async (req, res) => {
+  let isAdmin = await authorizeAdmin(req.cookies.accessToken);
+  if (isAdmin) {
+    const results = await query(`select * from transaction;`);
+    let resData = [];
+    for(let result of results) {
+      let {book, requestee, id} = result;
+      book = mysql.escape(book);
+      requestee = mysql.escape(requestee);
+
+      let userData = await query(`select * from user where id=${requestee};`);
+      let bookData = await query(`select * from book where id=${book};`);
+
+      userData = userData[0];
+      bookData = bookData[0];
+
+      let objData = {
+        id: id,
+
+        user: {
+          name: userData.name,
+          email: userData.email,
+          id: userData.id,
+        },
+
+        book: {
+          title: bookData.title,
+          id: bookData.id,
+        },
+      }
+
+      resData.push(objData);
+    }
+    res.send({arr: resData});
+  }
+  else {
+    res.send({msg: 'access denied'});
+  }
+});
+
+app.post('/approve-checkout-request', async (req, res) => {
+  let isAdmin = await authorizeAdmin(req.cookies.accessToken);
+  if (isAdmin) {
+    let {id, requestee, book} = req.body;
+
+    id = mysql.escape(id);
+    requestee = mysql.escape(requestee);
+    book = mysql.escape(book);
+    let timestamp = mysql.escape(Date.now());
+
+    await query(`insert into currently_issued (bearer, book, time_issued) values (${requestee}, ${book}, ${timestamp});`)
+    await query(`delete from transaction where id=${id};`);
+
+    res.send({success: true});
+  }
+  else {
+    res.send({msg: 'access denied'});
+  }
+});
+
+app.post('/reject-checkout-request', async (req, res) => {
+  let isAdmin = await authorizeAdmin(req.cookies.accessToken);
+  if (isAdmin) {
+    let {id} = req.body;
+    id = mysql.escape(id);
+    await query(`delete from transaction where id=${id};`);
     res.send({success: true});
   }
   else {

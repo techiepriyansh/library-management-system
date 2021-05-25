@@ -20,9 +20,10 @@ html, body {
   height: 100%;
 }
 
-.request-item {
+.request-item, .checkout-item {
   display: flex;
   flex-direction: row;
   justify-content: space-between;
   align-items: center;
 }
+

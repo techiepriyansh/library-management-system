@@ -10,6 +10,7 @@
   <script type="text/javascript" src="auth.js"></script>
   <script type="text/javascript" src="/util/tabs.js" defer></script>
   <script type="text/javascript" src="components/requestItems.js" defer></script>
+  <script type="text/javascript" src="components/checkoutItems.js" defer></script>
   <script type="text/javascript" src="components/books.js" defer></script>
   <script type="text/javascript" src="dashboard.js" defer></script>
 </head>
@@ -21,6 +22,9 @@
       </tab>
       <tab name="Registration Requests">
         <request-items-container ref="reqItemsContainer"></request-items-container>
+      </tab>
+      <tab name="Checkout Requests">
+        <checkout-items-container ref="checkoutItemsContainer"></checkout-items-container>
       </tab>
     </tabs>
   </div>
