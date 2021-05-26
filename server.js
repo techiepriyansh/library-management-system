@@ -231,7 +231,7 @@ app.get('/books-data', async (req, res) => {
 app.post('/edit-book-data', async (req, res) => {
   let isAdmin = await authorizeAdmin(req.cookies.accessToken);
   if (isAdmin) {
-    let {id, title, author, publisher, pages, total, available} = req.body;
+    let {id, title, author, publisher, pages, total, available, info} = req.body;
     await query(
       `
       update book
@@ -241,9 +241,34 @@ app.post('/edit-book-data', async (req, res) => {
       publisher = ${mysql.escape(publisher)},
       pages = ${mysql.escape(pages)},
       total = ${mysql.escape(total)},
-      available = ${mysql.escape(available)}
+      available = ${mysql.escape(available)},
+      info = ${mysql.escape(info)}
 
       where id = ${mysql.escape(id)};
+      `
+    );
+    res.send({success: true});
+  }
+  else {
+    res.send({msg: 'access denied'});
+  }
+});
+
+app.post('/add-book', async (req, res) => {
+  let isAdmin = await authorizeAdmin(req.cookies.accessToken);
+  if (isAdmin) {
+    let {title, author, publisher, pages, total, available, info} = req.body;
+    await query(
+      `
+      insert into book (title, author, publisher, pages, total, available, info) values (
+        ${mysql.escape(title)}, 
+        ${mysql.escape(author)},
+        ${mysql.escape(publisher)},
+        ${mysql.escape(pages)},
+        ${mysql.escape(total)},
+        ${mysql.escape(available)},
+        ${mysql.escape(info)}
+      );
       `
     );
     res.send({success: true});

@@ -134,9 +134,114 @@ Vue.component('book-item', {
   },
 });
 
+Vue.component('add-book-modal', {
+  template: `
+    <div class="modal" v-bind:class="{ 'is-active': isActive }">
+      <div class="modal-background"></div>
+      <div class="modal-card">
+        <header class="modal-card-head">
+          <p class="modal-card-title">Add Book</p>
+          <button class="delete" aria-label="close" @click="close"></button>
+        </header>
+        <section class="modal-card-body">
+          <div class="field">
+            <label class="label"> Title </label>
+            <div class="control">
+              <input class="input is-large" type="text" required="true" v-model="bookData.title">
+            </div>
+          </div>
+          <div class="field">
+            <label class="label"> Author </label>
+            <div class="control">
+              <input class="input is-normal" type="text" required="true" v-model="bookData.author">
+            </div>
+          </div>
+          <div class="field">
+            <label class="label"> Publisher </label>
+            <div class="control">
+              <input class="input is-normal" type="text" required="true" v-model="bookData.publisher">
+            </div>
+          </div>
+          <div class="field">
+            <label class="label"> Pages </label>
+            <div class="control">
+              <input class="input is-normal" type="text" required="true" pattern="[0-9]+" v-model="bookData.pages">
+            </div>
+          </div>
+          <div class="field">
+            <label class="label"> Total </label>
+            <div class="control">
+              <input class="input is-normal" type="text" required="true" pattern="[0-9]+" v-model="bookData.total">
+            </div>
+          </div>
+          <div class="field">
+            <label class="label"> Available </label>
+            <div class="control">
+              <input class="input is-normal" type="text" required="true" pattern="[0-9]+" v-model="bookData.available">
+            </div>
+          </div>
+          <div class="field">
+            <label class="label"> Description </label>
+            <div class="control">
+              <textarea class="textarea" v-model="bookData.info"></textarea>
+            </div>
+          </div>
+        </section>
+          <footer class="modal-card-foot">
+            <button class="button is-success" @click="addBook">Add</button>
+            <button class="button" @click="close">Cancel</button>
+          </footer>
+      </div>
+    </div>
+  `,
+
+  data: function () {
+    return {
+      isActive: false,
+      bookData: {
+        title: '',
+        author: '',
+        publisher: '',
+        pages: 0,
+        total: 0,
+        available: 0,
+        info: '',
+      },
+    };
+  },
+
+  methods: {
+    show: function() {
+      this.isActive = true;
+    },
+
+    close: function() {
+      this.isActive = false;
+    },
+
+    addBook: async function() {
+      console.log("add book");
+      console.log(this.bookData);
+      let resData = await postJSON('/add-book', this.bookData);
+      await rootEl.$refs['bookItemsContainer'].getBooksData();
+      this.close();
+    }
+  },
+
+});
+
 Vue.component('book-items-container', {
   template: `
     <div class="book-items-container">
+      <div class="block add-book-container">
+        <button class="button is-success" @click="addBookPrompt">
+          <span class="icon is-small">
+            <i class="fas fa-plus"></i>
+          </span>
+           <span>Add Book</span>
+        </button>
+      </div>
+      <add-book-modal ref="addBookModal"></add-book-modal>
       <ul>
         <li v-for="bookItem in bookItems">
           <book-item v-bind:bookData="bookItem"></book-item>
@@ -154,6 +259,10 @@ Vue.component('book-items-container', {
       console.log("getting books data");
       const bookData = await fetchJSON('/books-data');
       this.bookItems = bookData.arr;
+    },
+
+    addBookPrompt: async function() {
+      this.$refs['addBookModal'].show();
     },
   },
 
