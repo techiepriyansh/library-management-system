@@ -16,6 +16,8 @@ connection.connect();
 const query = util.promisify(connection.query).bind(connection);
 
 async function createTables() {
+  console.log("creating tables");
+
   await query(`
     create table admin (
       email varchar(255) primary key,
@@ -73,14 +75,17 @@ async function createTables() {
 }
 
 async function addAdmin(email, pass) {
+  console.log("adding admin credentials");
+
   email = mysql.escape(email);
   pass = mysql.escape(makeHash(pass));
   await query(`insert into admin (email, pass) values (${email}, ${pass});`);
 }
 
 async function addSampleBooks() {
+  console.log("adding sample books");
+
   let obj = JSON.parse(fs.readFileSync(__dirname + '/sample_data/books.json'), 'utf8');
-  console.log(obj.books[0]);
 
   const maxBooks = 100;
 
