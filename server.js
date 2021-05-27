@@ -69,9 +69,10 @@ app.post('/register', async (req, res) => {
 
 app.get('/user-book-library', async (req, res) => {
   let isVerified = await authorizeUser(req.cookies.accessToken);
-  let userId = cipher.decrypt(req.cookies.accessToken).id;
-  userId = mysql.escape(userId);
   if (isVerified) {
+    let userId = cipher.decrypt(req.cookies.accessToken).id;
+    userId = mysql.escape(userId);
+    
     const results = await query(`select * from book where available > 0;`)
     let resData = [];
     for(let result of results) {
@@ -177,7 +178,6 @@ async function authorizeUser(token) {
     return false;
   }
 
-  console.log(decryptedObj);
   let {email, pass} = decryptedObj;
   return handleUser(email, pass);
 }
@@ -186,7 +186,7 @@ async function handleUser(email, pass) {
   email = mysql.escape(email);
   pass = mysql.escape(pass);
 
-  const results = await query(`select * from user where email=${email} and pass=${pass};`);
+  const results = await query(`select * from user where email=${email} and pass=${pass} and active=true;`);
   return results.length > 0;
 }
 
@@ -524,7 +524,7 @@ async function doesUserExist(name, email, pass) {
   email = mysql.escape(email);
   pass = mysql.escape(pass);
 
-  const results = await query(`select * from user where name=${name} and email=${email} and pass=${pass};`);
+  const results = await query(`select * from user where email=${email};`);
   return results.length > 0;
 }
 
